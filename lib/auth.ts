@@ -1,41 +1,44 @@
-import { betterAuth } from 'better-auth'
-import { pool } from '@/lib/db'
+import { SignJWT, jwtVerify } from "jose";
+import { cookies } from "next/headers";
+import { db } from "@/lib/db";
+import { user, session } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
-export const auth = betterAuth({
-  database: pool,
-  secret: process.env.BETTER_AUTH_SECRET,
-  baseURL:
-    process.env.BETTER_AUTH_URL ??
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : process.env.V0_RUNTIME_URL),
-  emailAndPassword: {
-    enabled: true,
-    autoSignIn: true,
-  },
-  trustedOrigins: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    ...(process.env.V0_RUNTIME_URL ? [process.env.V0_RUNTIME_URL] : []),
-    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
-    ...(process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? [`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`]
-      : []),
-  ],
-  session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
-  },
-  ...(process.env.NODE_ENV === 'development'
-    ? {
-      advanced: {
-        defaultCookieAttributes: {
-          sameSite: 'none',
-          secure: true,
-        },
-      },
-    }
-    : {}),
-})
+const SECRET = new TextEncoder().encode(
+  process.env.AUTH_SECRET ?? "fallback-secret-change-me",
+);
+const COOKIE = "auth-token";
+
+export async function signToken(userId: string) {
+  return new SignJWT({ userId })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("7d")
+    .sign(SECRET);
+}
+
+export async function verifyToken(token: string) {
+  try {
+    const { payload } = await jwtVerify(token, SECRET);
+    return payload as { userId: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function getSession() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE)?.value;
+  if (!token) return null;
+  const payload = await verifyToken(token);
+  if (!payload) return null;
+  const [currentUser] = await db
+    .select()
+    .from(user)
+    .where(eq(user.id, payload.userId))
+    .limit(1);
+  return currentUser ?? null;
+}
+
+export function cookieName() {
+  return COOKIE;
+}

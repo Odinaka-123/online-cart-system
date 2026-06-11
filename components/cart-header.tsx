@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { ShoppingCart, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { authClient } from '@/lib/auth-client'
+import { signOut } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 
@@ -19,7 +19,7 @@ export function CartHeader({ cartCount = 0, session }: CartHeaderProps) {
   const handleSignOut = async () => {
     setIsSigning(true)
     try {
-      await authClient.signOut()
+      await signOut()
       router.push('/sign-in')
       router.refresh()
     } finally {
