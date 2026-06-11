@@ -8,16 +8,13 @@ import { CartHeader } from '@/components/cart-header'
 export default async function Home() {
   const session = await auth.api.getSession({ headers: await headers() })
 
-  if (!session?.user) {
-    redirect('/sign-in')
-  }
-
+  // Allow access for demo purposes - in production, you'd require auth
   const products = await getProducts()
-  const cart = await getCart()
+  const cart = session?.user ? await getCart() : { items: [] }
 
   return (
     <>
-      <CartHeader cartCount={cart.items.length} session={session} />
+      {session?.user && <CartHeader cartCount={cart.items.length} session={session} />}
 
       <main className="min-h-screen bg-gray-50">
         {/* Hero Section */}
